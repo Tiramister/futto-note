@@ -8,6 +8,18 @@ type MessageListProps = {
 	timelineRef: RefObject<HTMLDivElement | null>;
 };
 
+type TimelineItem =
+	| {
+			type: "separator";
+			key: string;
+			label: string;
+	  }
+	| {
+			type: "message";
+			key: string;
+			message: Message;
+	  };
+
 const urlPattern = /(https?:\/\/[^\s]+)/g;
 const exactURLPattern = /^https?:\/\/[^\s]+$/;
 
@@ -21,6 +33,54 @@ function formatMessageTime(createdAt: string): string {
 		dateStyle: "short",
 		timeStyle: "short",
 	}).format(date);
+}
+
+function formatTimelineDate(date: Date): string {
+	const year = date.getFullYear();
+	const month = String(date.getMonth() + 1).padStart(2, "0");
+	const day = String(date.getDate()).padStart(2, "0");
+	return `${year}/${month}/${day}`;
+}
+
+function getMessageDateKey(createdAt: string): string {
+	const date = new Date(createdAt);
+	if (Number.isNaN(date.getTime())) {
+		return `invalid:${createdAt}`;
+	}
+	return formatTimelineDate(date);
+}
+
+function formatSeparatorDate(createdAt: string): string {
+	const date = new Date(createdAt);
+	if (Number.isNaN(date.getTime())) {
+		return createdAt;
+	}
+	return formatTimelineDate(date);
+}
+
+function buildTimelineItems(messages: Message[]): TimelineItem[] {
+	const items: TimelineItem[] = [];
+	let previousDateKey: string | null = null;
+
+	for (const message of messages) {
+		const currentDateKey = getMessageDateKey(message.created_at);
+		if (previousDateKey !== currentDateKey) {
+			items.push({
+				type: "separator",
+				key: `separator-${message.id}-${currentDateKey}`,
+				label: formatSeparatorDate(message.created_at),
+			});
+			previousDateKey = currentDateKey;
+		}
+
+		items.push({
+			type: "message",
+			key: `message-${message.id}`,
+			message,
+		});
+	}
+
+	return items;
 }
 
 function renderMessageBody(body: string): ReactNode[] {
@@ -53,6 +113,8 @@ export function MessageList({
 	messagesError,
 	timelineRef,
 }: MessageListProps) {
+	const timelineItems = buildTimelineItems(messages);
+
 	return (
 		<div
 			className="timeline-messages"
@@ -76,16 +138,40 @@ export function MessageList({
 			)}
 			{!isLoadingMessages && messagesError === "" && messages.length > 0 && (
 				<ol className="message-list">
-					{messages.map((message) => (
-						<li className="message-item" key={message.id}>
-							<p className="message-body">{renderMessageBody(message.body)}</p>
-							<p className="message-meta">
-								<time dateTime={message.created_at}>
-									{formatMessageTime(message.created_at)}
-								</time>
-							</p>
-						</li>
-					))}
+					{timelineItems.map((item) => {
+						if (item.type === "separator") {
+							return (
+								<li
+									className="message-separator"
+									data-testid="message-date-separator"
+									key={item.key}
+								>
+									<span
+										aria-hidden="true"
+										className="message-separator__line"
+									/>
+									<span className="message-separator__label">{item.label}</span>
+									<span
+										aria-hidden="true"
+										className="message-separator__line"
+									/>
+								</li>
+							);
+						}
+
+						return (
+							<li className="message-item" key={item.key}>
+								<p className="message-body">
+									{renderMessageBody(item.message.body)}
+								</p>
+								<p className="message-meta">
+									<time dateTime={item.message.created_at}>
+										{formatMessageTime(item.message.created_at)}
+									</time>
+								</p>
+							</li>
+						);
+					})}
 				</ol>
 			)}
 		</div>
