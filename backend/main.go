@@ -30,6 +30,10 @@ func main() {
 	r.Post("/api/login", loginHandler)
 	r.Post("/api/logout", logoutHandler)
 	r.Get("/api/me", meHandler)
+	r.Group(func(r chi.Router) {
+		r.Use(authMiddleware)
+		r.Get("/api/messages", listMessagesHandler)
+	})
 
 	port := os.Getenv("PORT")
 	if port == "" {
