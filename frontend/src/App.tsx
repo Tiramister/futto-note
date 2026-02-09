@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import "./App.css";
+import { config } from "./config";
 import { AuthHeader } from "./components/AuthHeader";
 import { LoginForm } from "./components/LoginForm";
 import { MessageComposer } from "./components/MessageComposer";
@@ -78,9 +79,9 @@ function App() {
 		setSubmitMessageError("");
 		setIsSubmittingMessage(true);
 		try {
-			const response = await fetch("/api/messages", {
+			const response = await fetch(`${config.apiBaseUrl}/api/messages`, {
 				method: "POST",
-				credentials: "same-origin",
+				credentials: "include",
 				headers: {
 					"Content-Type": "application/json",
 				},

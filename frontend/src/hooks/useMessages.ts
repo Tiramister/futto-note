@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { config } from "../config";
 import type { Message, User } from "../types";
 
 type MessagesResponse = {
@@ -46,9 +47,9 @@ export function useMessages(
 
 		const fetchMessages = async () => {
 			try {
-				const response = await fetch("/api/messages", {
+				const response = await fetch(`${config.apiBaseUrl}/api/messages`, {
 					method: "GET",
-					credentials: "same-origin",
+					credentials: "include",
 					signal: controller.signal,
 				});
 

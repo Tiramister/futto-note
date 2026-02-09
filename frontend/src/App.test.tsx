@@ -107,7 +107,7 @@ describe("App", () => {
 				"/api/messages",
 				expect.objectContaining({
 					method: "GET",
-					credentials: "same-origin",
+					credentials: "include",
 				}),
 			);
 		});
@@ -225,7 +225,7 @@ describe("App", () => {
 				"/api/messages",
 				expect.objectContaining({
 					method: "POST",
-					credentials: "same-origin",
+					credentials: "include",
 					body: JSON.stringify({ body: createdMessage.body }),
 				}),
 			);

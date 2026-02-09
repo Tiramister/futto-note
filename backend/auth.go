@@ -219,8 +219,8 @@ func setSessionCookie(w http.ResponseWriter, token string) {
 		Value:    token,
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   isProduction(),
-		SameSite: http.SameSiteStrictMode,
+		Secure:   isProduction() || isCrossOrigin(),
+		SameSite: cookieSameSite(),
 		MaxAge:   sessionMaxAgeSecond,
 		Expires:  time.Now().Add(sessionDuration()),
 	})
@@ -232,8 +232,8 @@ func clearSessionCookie(w http.ResponseWriter) {
 		Value:    "",
 		Path:     "/",
 		HttpOnly: true,
-		Secure:   isProduction(),
-		SameSite: http.SameSiteStrictMode,
+		Secure:   isProduction() || isCrossOrigin(),
+		SameSite: cookieSameSite(),
 		MaxAge:   -1,
 		Expires:  time.Unix(0, 0),
 	})
@@ -241,6 +241,17 @@ func clearSessionCookie(w http.ResponseWriter) {
 
 func isProduction() bool {
 	return os.Getenv("APP_ENV") == "production"
+}
+
+func isCrossOrigin() bool {
+	return os.Getenv("CORS_ORIGIN") != ""
+}
+
+func cookieSameSite() http.SameSite {
+	if isCrossOrigin() {
+		return http.SameSiteNoneMode
+	}
+	return http.SameSiteStrictMode
 }
 
 func writeJSON(w http.ResponseWriter, status int, payload any) {

@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
+	"github.com/go-chi/cors"
 	_ "github.com/lib/pq"
 )
 
@@ -25,6 +26,7 @@ func main() {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
+	r.Use(corsMiddleware())
 
 	r.Get("/api/health", healthHandler)
 	r.Post("/api/login", loginHandler)
@@ -53,9 +55,13 @@ func connectDB() (*sql.DB, error) {
 	user := os.Getenv("DB_USER")
 	password := os.Getenv("DB_PASSWORD")
 	dbname := os.Getenv("DB_NAME")
+	sslmode := os.Getenv("DB_SSLMODE")
+	if sslmode == "" {
+		sslmode = "disable"
+	}
 
-	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-		host, port, user, password, dbname)
+	dsn := fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=%s",
+		host, port, user, password, dbname, sslmode)
 
 	conn, err := sql.Open("postgres", dsn)
 	if err != nil {
@@ -67,6 +73,21 @@ func connectDB() (*sql.DB, error) {
 	}
 
 	return conn, nil
+}
+
+func corsMiddleware() func(http.Handler) http.Handler {
+	allowedOrigins := []string{}
+	if origin := os.Getenv("CORS_ORIGIN"); origin != "" {
+		allowedOrigins = append(allowedOrigins, origin)
+	}
+
+	return cors.Handler(cors.Options{
+		AllowedOrigins:   allowedOrigins,
+		AllowedMethods:   []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowedHeaders:   []string{"Content-Type"},
+		AllowCredentials: true,
+		MaxAge:           300,
+	})
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {

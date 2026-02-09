@@ -1,5 +1,6 @@
 import type { FormEvent } from "react";
 import { useEffect, useState } from "react";
+import { config } from "../config";
 import type { User } from "../types";
 
 type MeResponse = {
@@ -48,9 +49,9 @@ export function useAuth() {
 
 		const checkSession = async () => {
 			try {
-				const response = await fetch("/api/me", {
+				const response = await fetch(`${config.apiBaseUrl}/api/me`, {
 					method: "GET",
-					credentials: "same-origin",
+					credentials: "include",
 					signal: controller.signal,
 				});
 				if (response.ok) {
@@ -95,9 +96,9 @@ export function useAuth() {
 				username: normalizedUsername,
 				password,
 			};
-			const response = await fetch("/api/login", {
+			const response = await fetch(`${config.apiBaseUrl}/api/login`, {
 				method: "POST",
-				credentials: "same-origin",
+				credentials: "include",
 				headers: {
 					"Content-Type": "application/json",
 				},
@@ -129,9 +130,9 @@ export function useAuth() {
 		setLogoutError("");
 		setIsLoggingOut(true);
 		try {
-			const response = await fetch("/api/logout", {
+			const response = await fetch(`${config.apiBaseUrl}/api/logout`, {
 				method: "POST",
-				credentials: "same-origin",
+				credentials: "include",
 			});
 			if (!response.ok && response.status !== 204) {
 				const message = await parseErrorMessage(
