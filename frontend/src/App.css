@@ -86,6 +86,7 @@ button:disabled {
 	border-radius: 1rem;
 	background: #ffffff;
 	box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+	overflow: hidden;
 }
 
 .timeline-header {
@@ -211,9 +212,18 @@ button:disabled {
 	color: #6b7280;
 }
 
+.composer-area {
+	position: sticky;
+	bottom: 0;
+	display: grid;
+	gap: 0.35rem;
+	padding-top: 0.25rem;
+	background: linear-gradient(to top, #ffffff 70%, rgba(255, 255, 255, 0));
+}
+
 .composer {
 	display: grid;
-	grid-template-columns: 1fr auto;
+	grid-template-columns: minmax(0, 1fr) auto;
 	gap: 0.45rem;
 	padding: 0;
 	border: 0;
@@ -230,12 +240,20 @@ button:disabled {
 	font-size: 0.92rem;
 	font-family: inherit;
 	resize: vertical;
+	max-height: 40vh;
 }
 
 .composer button {
 	align-self: end;
 	padding: 0.5rem 0.75rem;
 	font-size: 0.82rem;
+	min-width: 4.75rem;
+}
+
+.composer__error {
+	text-align: left;
+	font-size: 0.82rem;
+	padding: 0 0.1rem;
 }
 
 @media (max-width: 767px) {
@@ -283,6 +301,14 @@ button:disabled {
 	.composer textarea {
 		min-height: 56px;
 		font-size: 0.88rem;
+	}
+
+	.composer {
+		grid-template-columns: 1fr;
+	}
+
+	.composer button {
+		width: 100%;
 	}
 }
 

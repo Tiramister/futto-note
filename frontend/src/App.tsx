@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import "./App.css";
 import { AuthHeader } from "./components/AuthHeader";
 import { LoginForm } from "./components/LoginForm";
@@ -5,6 +6,22 @@ import { MessageComposer } from "./components/MessageComposer";
 import { MessageList } from "./components/MessageList";
 import { useAuth } from "./hooks/useAuth";
 import { useMessages } from "./hooks/useMessages";
+import type { Message } from "./types";
+
+async function parseErrorMessage(
+	response: Response,
+	fallback: string,
+): Promise<string> {
+	try {
+		const json = (await response.json()) as { error?: string };
+		if (json.error && json.error.trim() !== "") {
+			return json.error;
+		}
+	} catch {
+		// ignore parse error and use fallback
+	}
+	return fallback;
+}
 
 function App() {
 	const {
@@ -25,8 +42,77 @@ function App() {
 		toggleUserMenu,
 	} = useAuth();
 
-	const { messages, isLoadingMessages, messagesError, timelineRef } =
-		useMessages(user, setUser);
+	const {
+		messages,
+		isLoadingMessages,
+		messagesError,
+		timelineRef,
+		appendMessage,
+		scrollToBottom,
+	} = useMessages(user, setUser);
+	const [draftMessage, setDraftMessage] = useState("");
+	const [isSubmittingMessage, setIsSubmittingMessage] = useState(false);
+	const [submitMessageError, setSubmitMessageError] = useState("");
+
+	useEffect(() => {
+		if (user) {
+			return;
+		}
+		setDraftMessage("");
+		setSubmitMessageError("");
+		setIsSubmittingMessage(false);
+	}, [user]);
+
+	const handleDraftMessageChange = (nextValue: string) => {
+		setDraftMessage(nextValue);
+		if (submitMessageError !== "") {
+			setSubmitMessageError("");
+		}
+	};
+
+	const handleCreateMessage = async () => {
+		if (draftMessage === "" || isSubmittingMessage) {
+			return;
+		}
+
+		setSubmitMessageError("");
+		setIsSubmittingMessage(true);
+		try {
+			const response = await fetch("/api/messages", {
+				method: "POST",
+				credentials: "same-origin",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({ body: draftMessage }),
+			});
+
+			if (response.status === 401) {
+				setUser(null);
+				return;
+			}
+
+			if (!response.ok) {
+				const message = await parseErrorMessage(
+					response,
+					"メッセージの送信に失敗しました。",
+				);
+				setSubmitMessageError(message);
+				return;
+			}
+
+			const createdMessage = (await response.json()) as Message;
+			appendMessage(createdMessage);
+			setDraftMessage("");
+			setTimeout(() => {
+				scrollToBottom();
+			}, 0);
+		} catch {
+			setSubmitMessageError("メッセージの送信に失敗しました。");
+		} finally {
+			setIsSubmittingMessage(false);
+		}
+	};
 
 	if (isCheckingAuth) {
 		return (
@@ -68,7 +154,13 @@ function App() {
 					messagesError={messagesError}
 					timelineRef={timelineRef}
 				/>
-				<MessageComposer />
+				<MessageComposer
+					value={draftMessage}
+					isSubmitting={isSubmittingMessage}
+					errorMessage={submitMessageError}
+					onChange={handleDraftMessageChange}
+					onSubmit={handleCreateMessage}
+				/>
 				{logoutError !== "" && (
 					<p className="status status--error" role="alert">
 						{logoutError}

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"net/http"
 	"time"
 )
@@ -13,6 +14,26 @@ type messageListItem struct {
 
 type messageListResponse struct {
 	Messages []messageListItem `json:"messages"`
+}
+
+type createMessageRequest struct {
+	Body string `json:"body"`
+}
+
+var insertMessage = func(userID string, body string) (messageListItem, error) {
+	var message messageListItem
+	err := db.QueryRow(
+		`INSERT INTO messages (user_id, body)
+		 VALUES ($1, $2)
+		 RETURNING id, body, created_at`,
+		userID,
+		body,
+	).Scan(&message.ID, &message.Body, &message.CreatedAt)
+	if err != nil {
+		return messageListItem{}, err
+	}
+
+	return message, nil
 }
 
 func listMessagesHandler(w http.ResponseWriter, r *http.Request) {
@@ -51,4 +72,33 @@ func listMessagesHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, messageListResponse{Messages: messages})
+}
+
+func createMessageHandler(w http.ResponseWriter, r *http.Request) {
+	userID, ok := getUserIDFromContext(r.Context())
+	if !ok || userID == "" {
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	var req createMessageRequest
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if req.Body == "" {
+		writeError(w, http.StatusBadRequest, "body is required")
+		return
+	}
+
+	message, err := insertMessage(userID, req.Body)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	writeJSON(w, http.StatusCreated, message)
 }

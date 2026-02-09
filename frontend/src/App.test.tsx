@@ -33,6 +33,16 @@ function jsonResponse(payload: unknown, status = 200): Response {
 	return new Response(JSON.stringify(payload), { status });
 }
 
+function getPostMessageCalls() {
+	return fetchMock.mock.calls.filter(([url, options]) => {
+		if (url !== "/api/messages") {
+			return false;
+		}
+		const requestInit = options as RequestInit | undefined;
+		return requestInit?.method === "POST";
+	});
+}
+
 describe("App", () => {
 	beforeEach(() => {
 		vi.stubGlobal("fetch", fetchMock);
@@ -161,6 +171,137 @@ describe("App", () => {
 		});
 		expect(link).toHaveAttribute("href", "https://example.com");
 		expect(screen.getByText("最初のメッセージ")).toBeInTheDocument();
+	});
+
+	it("空入力ではメッセージ送信 API を呼ばない", async () => {
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse({ user: sampleUser }))
+			.mockResolvedValueOnce(jsonResponse({ messages: sampleMessages }));
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByTestId("main-screen")).toBeInTheDocument();
+		});
+
+		fireEvent.click(screen.getByRole("button", { name: "送信" }));
+		expect(getPostMessageCalls()).toHaveLength(0);
+	});
+
+	it("送信成功時に入力をクリアし、タイムラインに追加して最下部へスクロールする", async () => {
+		const createdMessage = {
+			id: 3,
+			body: "送信成功メッセージ",
+			created_at: "2026-02-09T10:10:00Z",
+		};
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse({ user: sampleUser }))
+			.mockResolvedValueOnce(jsonResponse({ messages: sampleMessages }))
+			.mockResolvedValueOnce(jsonResponse(createdMessage, 201));
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByTestId("main-screen")).toBeInTheDocument();
+		});
+
+		const timeline = screen.getByTestId("message-list");
+		Object.defineProperty(timeline, "scrollHeight", {
+			value: 640,
+			configurable: true,
+		});
+		Object.defineProperty(timeline, "scrollTop", {
+			value: 0,
+			writable: true,
+			configurable: true,
+		});
+
+		const input = screen.getByLabelText("メッセージ入力");
+		fireEvent.change(input, { target: { value: createdMessage.body } });
+		fireEvent.click(screen.getByRole("button", { name: "送信" }));
+
+		await waitFor(() => {
+			expect(fetchMock).toHaveBeenCalledWith(
+				"/api/messages",
+				expect.objectContaining({
+					method: "POST",
+					credentials: "same-origin",
+					body: JSON.stringify({ body: createdMessage.body }),
+				}),
+			);
+		});
+
+		await waitFor(() => {
+			expect(input).toHaveValue("");
+		});
+		expect(await screen.findByText(createdMessage.body)).toBeInTheDocument();
+
+		await waitFor(() => {
+			expect(timeline.scrollTop).toBe(640);
+		});
+	});
+
+	it("Ctrl+Enter で送信し、Enter 単体では送信しない", async () => {
+		const createdMessage = {
+			id: 3,
+			body: "Ctrl+Enter 送信",
+			created_at: "2026-02-09T10:10:00Z",
+		};
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse({ user: sampleUser }))
+			.mockResolvedValueOnce(jsonResponse({ messages: sampleMessages }))
+			.mockResolvedValueOnce(jsonResponse(createdMessage, 201));
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByTestId("main-screen")).toBeInTheDocument();
+		});
+
+		const input = screen.getByLabelText("メッセージ入力");
+		fireEvent.change(input, { target: { value: createdMessage.body } });
+
+		fireEvent.keyDown(input, {
+			key: "Enter",
+			code: "Enter",
+		});
+		expect(getPostMessageCalls()).toHaveLength(0);
+
+		fireEvent.keyDown(input, {
+			key: "Enter",
+			code: "Enter",
+			ctrlKey: true,
+		});
+
+		await waitFor(() => {
+			expect(getPostMessageCalls()).toHaveLength(1);
+		});
+	});
+
+	it("送信失敗時は入力内容を保持してエラーを表示する", async () => {
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse({ user: sampleUser }))
+			.mockResolvedValueOnce(jsonResponse({ messages: sampleMessages }))
+			.mockResolvedValueOnce(
+				jsonResponse({ error: "メッセージ作成に失敗しました。" }, 500),
+			);
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByTestId("main-screen")).toBeInTheDocument();
+		});
+
+		const input = screen.getByLabelText("メッセージ入力");
+		fireEvent.change(input, { target: { value: "失敗ケース" } });
+		fireEvent.click(screen.getByRole("button", { name: "送信" }));
+
+		await waitFor(() => {
+			expect(screen.getByRole("alert")).toHaveTextContent(
+				"メッセージ作成に失敗しました。",
+			);
+		});
+		expect(input).toHaveValue("失敗ケース");
 	});
 
 	it("ログアウト成功時にログイン画面へ戻る", async () => {

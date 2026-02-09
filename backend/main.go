@@ -33,6 +33,7 @@ func main() {
 	r.Group(func(r chi.Router) {
 		r.Use(authMiddleware)
 		r.Get("/api/messages", listMessagesHandler)
+		r.Post("/api/messages", createMessageHandler)
 	})
 
 	port := os.Getenv("PORT")

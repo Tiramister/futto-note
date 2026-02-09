@@ -107,10 +107,24 @@ export function useMessages(
 		hasAutoScrolledRef.current = true;
 	}, [user, isLoadingMessages, messages.length, messagesError]);
 
+	const appendMessage = (message: Message) => {
+		setMessages((currentMessages) => [...currentMessages, message]);
+	};
+
+	const scrollToBottom = () => {
+		const timelineElement = timelineRef.current;
+		if (!timelineElement) {
+			return;
+		}
+		timelineElement.scrollTop = timelineElement.scrollHeight;
+	};
+
 	return {
 		messages,
 		isLoadingMessages,
 		messagesError,
 		timelineRef,
+		appendMessage,
+		scrollToBottom,
 	};
 }

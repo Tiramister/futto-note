@@ -225,7 +225,7 @@ go run tools/create_user.go -username <name> -password <pass>
 **入力エリア**
 
 - 画面下部に固定配置のテキスト入力欄 + 送信ボタン
-- Enter で送信（Shift+Enter で改行）
+- Enter で改行（Ctrl+Enter で送信）
 - 送信後は入力欄をクリア
 - 送信成功したらメッセージ一覧に追加し、最下部にスクロール
 
