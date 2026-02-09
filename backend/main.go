@@ -2,7 +2,6 @@ package main
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"log"
 	"net/http"
@@ -28,6 +27,9 @@ func main() {
 	r.Use(middleware.Recoverer)
 
 	r.Get("/api/health", healthHandler)
+	r.Post("/api/login", loginHandler)
+	r.Post("/api/logout", logoutHandler)
+	r.Get("/api/me", meHandler)
 
 	port := os.Getenv("PORT")
 	if port == "" {
@@ -63,21 +65,17 @@ func connectDB() (*sql.DB, error) {
 }
 
 func healthHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json")
-
 	var result int
 	err := db.QueryRow("SELECT 1").Scan(&result)
 	if err != nil {
-		w.WriteHeader(http.StatusServiceUnavailable)
-		json.NewEncoder(w).Encode(map[string]string{
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{
 			"status":  "error",
 			"message": "database connection failed",
 		})
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
-	json.NewEncoder(w).Encode(map[string]string{
+	writeJSON(w, http.StatusOK, map[string]string{
 		"status": "ok",
 	})
 }
