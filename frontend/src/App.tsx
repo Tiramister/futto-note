@@ -50,10 +50,16 @@ function App() {
 		timelineRef,
 		latestMessageRef,
 		appendMessage,
+		replaceMessage,
 	} = useMessages(user, setUser);
 	const [draftMessage, setDraftMessage] = useState("");
 	const [isSubmittingMessage, setIsSubmittingMessage] = useState(false);
 	const [submitMessageError, setSubmitMessageError] = useState("");
+
+	const [editingMessageId, setEditingMessageId] = useState<number | null>(null);
+	const [editBody, setEditBody] = useState("");
+	const [isUpdating, setIsUpdating] = useState(false);
+	const [updateError, setUpdateError] = useState("");
 
 	useEffect(() => {
 		if (user) {
@@ -62,6 +68,10 @@ function App() {
 		setDraftMessage("");
 		setSubmitMessageError("");
 		setIsSubmittingMessage(false);
+		setEditingMessageId(null);
+		setEditBody("");
+		setIsUpdating(false);
+		setUpdateError("");
 	}, [user]);
 
 	const handleDraftMessageChange = (nextValue: string) => {
@@ -112,6 +122,80 @@ function App() {
 		}
 	};
 
+	const handleStartEdit = (message: Message) => {
+		setEditingMessageId(message.id);
+		setEditBody(message.body);
+		setUpdateError("");
+	};
+
+	const handleEditBodyChange = (value: string) => {
+		setEditBody(value);
+		if (updateError !== "") {
+			setUpdateError("");
+		}
+	};
+
+	const handleCancelEdit = () => {
+		setEditingMessageId(null);
+		setEditBody("");
+		setUpdateError("");
+	};
+
+	const handleSaveEdit = async () => {
+		if (editingMessageId === null || editBody === "" || isUpdating) {
+			return;
+		}
+
+		setUpdateError("");
+		setIsUpdating(true);
+		try {
+			const response = await fetch(
+				`${config.apiBaseUrl}/api/messages/${editingMessageId}`,
+				{
+					method: "PUT",
+					credentials: "include",
+					headers: {
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({ body: editBody }),
+				},
+			);
+
+			if (response.status === 401) {
+				setUser(null);
+				return;
+			}
+
+			if (!response.ok) {
+				const message = await parseErrorMessage(
+					response,
+					"メッセージの更新に失敗しました。",
+				);
+				setUpdateError(message);
+				return;
+			}
+
+			const updatedMessage = (await response.json()) as Message;
+			replaceMessage(updatedMessage);
+			setEditingMessageId(null);
+			setEditBody("");
+		} catch {
+			setUpdateError("メッセージの更新に失敗しました。");
+		} finally {
+			setIsUpdating(false);
+		}
+	};
+
+	const editState =
+		editingMessageId !== null
+			? {
+					messageId: editingMessageId,
+					editBody,
+					isUpdating,
+					updateError,
+				}
+			: null;
+
 	if (isCheckingAuth) {
 		return (
 			<main className="app">
@@ -152,6 +236,11 @@ function App() {
 					messagesError={messagesError}
 					timelineRef={timelineRef}
 					latestMessageRef={latestMessageRef}
+					editState={editState}
+					onStartEdit={handleStartEdit}
+					onEditBodyChange={handleEditBodyChange}
+					onSaveEdit={handleSaveEdit}
+					onCancelEdit={handleCancelEdit}
 				/>
 				<MessageComposer
 					value={draftMessage}

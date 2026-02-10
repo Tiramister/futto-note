@@ -36,6 +36,7 @@ func main() {
 		r.Use(authMiddleware)
 		r.Get("/api/messages", listMessagesHandler)
 		r.Post("/api/messages", createMessageHandler)
+		r.Put("/api/messages/{id}", updateMessageHandler)
 	})
 
 	port := os.Getenv("PORT")

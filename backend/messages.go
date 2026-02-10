@@ -1,9 +1,14 @@
 package main
 
 import (
+	"database/sql"
 	"encoding/json"
+	"errors"
 	"net/http"
+	"strconv"
 	"time"
+
+	"github.com/go-chi/chi/v5"
 )
 
 type messageListItem struct {
@@ -20,6 +25,10 @@ type createMessageRequest struct {
 	Body string `json:"body"`
 }
 
+type updateMessageRequest struct {
+	Body string `json:"body"`
+}
+
 var insertMessage = func(userID string, body string) (messageListItem, error) {
 	var message messageListItem
 	err := db.QueryRow(
@@ -28,6 +37,24 @@ var insertMessage = func(userID string, body string) (messageListItem, error) {
 		 RETURNING id, body, created_at`,
 		userID,
 		body,
+	).Scan(&message.ID, &message.Body, &message.CreatedAt)
+	if err != nil {
+		return messageListItem{}, err
+	}
+
+	return message, nil
+}
+
+var updateMessage = func(id int, userID string, body string) (messageListItem, error) {
+	var message messageListItem
+	err := db.QueryRow(
+		`UPDATE messages
+		 SET body = $1
+		 WHERE id = $2 AND user_id = $3
+		 RETURNING id, body, created_at`,
+		body,
+		id,
+		userID,
 	).Scan(&message.ID, &message.Body, &message.CreatedAt)
 	if err != nil {
 		return messageListItem{}, err
@@ -101,4 +128,44 @@ func createMessageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusCreated, message)
+}
+
+func updateMessageHandler(w http.ResponseWriter, r *http.Request) {
+	userID, ok := getUserIDFromContext(r.Context())
+	if !ok || userID == "" {
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	idParam := chi.URLParam(r, "id")
+	messageID, err := strconv.Atoi(idParam)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid message id")
+		return
+	}
+
+	var req updateMessageRequest
+	decoder := json.NewDecoder(r.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
+		writeError(w, http.StatusBadRequest, "invalid request body")
+		return
+	}
+
+	if req.Body == "" {
+		writeError(w, http.StatusBadRequest, "body is required")
+		return
+	}
+
+	message, err := updateMessage(messageID, userID, req.Body)
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			writeError(w, http.StatusNotFound, "message not found")
+			return
+		}
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, message)
 }

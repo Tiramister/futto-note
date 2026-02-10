@@ -108,6 +108,14 @@ export function useMessages(
 		setScrollRequest("post-send");
 	};
 
+	const replaceMessage = (updatedMessage: Message) => {
+		setMessages((currentMessages) =>
+			currentMessages.map((msg) =>
+				msg.id === updatedMessage.id ? updatedMessage : msg,
+			),
+		);
+	};
+
 	return {
 		messages,
 		isLoadingMessages,
@@ -115,5 +123,6 @@ export function useMessages(
 		timelineRef,
 		latestMessageRef,
 		appendMessage,
+		replaceMessage,
 	};
 }

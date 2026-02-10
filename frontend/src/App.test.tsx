@@ -43,6 +43,16 @@ function getPostMessageCalls() {
 	});
 }
 
+function getPutMessageCalls() {
+	return fetchMock.mock.calls.filter(([url, options]) => {
+		if (typeof url !== "string" || !url.startsWith("/api/messages/")) {
+			return false;
+		}
+		const requestInit = options as RequestInit | undefined;
+		return requestInit?.method === "PUT";
+	});
+}
+
 describe("App", () => {
 	beforeEach(() => {
 		vi.stubGlobal("fetch", fetchMock);
@@ -341,5 +351,154 @@ describe("App", () => {
 		await waitFor(() => {
 			expect(screen.getByTestId("login-screen")).toBeInTheDocument();
 		});
+	});
+
+	it("編集開始時にテキストエリアに現在の本文が表示される", async () => {
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse({ user: sampleUser }))
+			.mockResolvedValueOnce(jsonResponse({ messages: sampleMessages }));
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByTestId("main-screen")).toBeInTheDocument();
+		});
+		await screen.findByText("最初のメッセージ");
+
+		const menuTriggers = screen.getAllByTestId("message-menu-trigger");
+		fireEvent.click(menuTriggers[0]);
+
+		const editButton = await screen.findByTestId("message-edit-button");
+		fireEvent.click(editButton);
+
+		const textarea = screen.getByTestId("edit-textarea");
+		expect(textarea).toHaveValue("最初のメッセージ");
+		expect(screen.getByTestId("edit-save-button")).toBeInTheDocument();
+		expect(screen.getByTestId("edit-cancel-button")).toBeInTheDocument();
+	});
+
+	it("編集保存成功時に本文が更新される", async () => {
+		const updatedMessage = {
+			id: 1,
+			body: "更新されたメッセージ",
+			created_at: "2026-02-09T10:00:00Z",
+		};
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse({ user: sampleUser }))
+			.mockResolvedValueOnce(jsonResponse({ messages: sampleMessages }))
+			.mockResolvedValueOnce(jsonResponse(updatedMessage));
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByTestId("main-screen")).toBeInTheDocument();
+		});
+		await screen.findByText("最初のメッセージ");
+
+		const menuTriggers = screen.getAllByTestId("message-menu-trigger");
+		fireEvent.click(menuTriggers[0]);
+
+		const editButton = await screen.findByTestId("message-edit-button");
+		fireEvent.click(editButton);
+
+		const textarea = screen.getByTestId("edit-textarea");
+		fireEvent.change(textarea, { target: { value: "更新されたメッセージ" } });
+		fireEvent.click(screen.getByTestId("edit-save-button"));
+
+		await waitFor(() => {
+			expect(fetchMock).toHaveBeenCalledWith(
+				"/api/messages/1",
+				expect.objectContaining({
+					method: "PUT",
+					credentials: "include",
+					body: JSON.stringify({ body: "更新されたメッセージ" }),
+				}),
+			);
+		});
+
+		await waitFor(() => {
+			expect(screen.getByText("更新されたメッセージ")).toBeInTheDocument();
+		});
+		expect(screen.queryByTestId("edit-textarea")).not.toBeInTheDocument();
+	});
+
+	it("編集キャンセル時は PUT API を呼ばずに表示モードへ戻る", async () => {
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse({ user: sampleUser }))
+			.mockResolvedValueOnce(jsonResponse({ messages: sampleMessages }));
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByTestId("main-screen")).toBeInTheDocument();
+		});
+		await screen.findByText("最初のメッセージ");
+
+		const menuTriggers = screen.getAllByTestId("message-menu-trigger");
+		fireEvent.click(menuTriggers[0]);
+
+		const editButton = await screen.findByTestId("message-edit-button");
+		fireEvent.click(editButton);
+
+		const textarea = screen.getByTestId("edit-textarea");
+		fireEvent.change(textarea, { target: { value: "変更後の本文" } });
+		fireEvent.click(screen.getByTestId("edit-cancel-button"));
+
+		expect(getPutMessageCalls()).toHaveLength(0);
+		expect(screen.queryByTestId("edit-textarea")).not.toBeInTheDocument();
+		expect(screen.getByText("最初のメッセージ")).toBeInTheDocument();
+	});
+
+	it("編集保存失敗時は入力内容を保持してエラー表示し、再保存できる", async () => {
+		const updatedMessage = {
+			id: 1,
+			body: "再試行で成功",
+			created_at: "2026-02-09T10:00:00Z",
+		};
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse({ user: sampleUser }))
+			.mockResolvedValueOnce(jsonResponse({ messages: sampleMessages }))
+			.mockResolvedValueOnce(
+				jsonResponse({ error: "メッセージの更新に失敗しました。" }, 500),
+			)
+			.mockResolvedValueOnce(jsonResponse(updatedMessage));
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByTestId("main-screen")).toBeInTheDocument();
+		});
+		await screen.findByText("最初のメッセージ");
+
+		const menuTriggers = screen.getAllByTestId("message-menu-trigger");
+		fireEvent.click(menuTriggers[0]);
+
+		const editButton = await screen.findByTestId("message-edit-button");
+		fireEvent.click(editButton);
+
+		const textarea = screen.getByTestId("edit-textarea");
+		fireEvent.change(textarea, { target: { value: "失敗ケース" } });
+		fireEvent.click(screen.getByTestId("edit-save-button"));
+
+		// エラー表示を確認
+		await waitFor(() => {
+			expect(screen.getByTestId("edit-error")).toHaveTextContent(
+				"メッセージの更新に失敗しました。",
+			);
+		});
+
+		// 入力内容が保持されている
+		expect(screen.getByTestId("edit-textarea")).toHaveValue("失敗ケース");
+
+		// 再試行で成功
+		fireEvent.change(screen.getByTestId("edit-textarea"), {
+			target: { value: "再試行で成功" },
+		});
+		fireEvent.click(screen.getByTestId("edit-save-button"));
+
+		await waitFor(() => {
+			expect(screen.getByText("再試行で成功")).toBeInTheDocument();
+		});
+		expect(screen.queryByTestId("edit-textarea")).not.toBeInTheDocument();
 	});
 });

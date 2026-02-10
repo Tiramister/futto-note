@@ -1,5 +1,12 @@
-import type { ReactNode, Ref, RefObject } from "react";
+import { type ReactNode, type Ref, type RefObject, useState } from "react";
 import type { Message } from "../types";
+
+type EditState = {
+	messageId: number;
+	editBody: string;
+	isUpdating: boolean;
+	updateError: string;
+};
 
 type MessageListProps = {
 	messages: Message[];
@@ -7,6 +14,11 @@ type MessageListProps = {
 	messagesError: string;
 	timelineRef: RefObject<HTMLDivElement | null>;
 	latestMessageRef: Ref<HTMLLIElement>;
+	editState: EditState | null;
+	onStartEdit: (message: Message) => void;
+	onEditBodyChange: (value: string) => void;
+	onSaveEdit: () => void;
+	onCancelEdit: () => void;
 };
 
 type TimelineItem =
@@ -108,12 +120,137 @@ function renderMessageBody(body: string): ReactNode[] {
 	});
 }
 
+type MessageItemProps = {
+	message: Message;
+	isLatest: boolean;
+	latestMessageRef: Ref<HTMLLIElement>;
+	isEditing: boolean;
+	editState: EditState | null;
+	onStartEdit: (message: Message) => void;
+	onEditBodyChange: (value: string) => void;
+	onSaveEdit: () => void;
+	onCancelEdit: () => void;
+};
+
+function MessageItem({
+	message,
+	isLatest,
+	latestMessageRef,
+	isEditing,
+	editState,
+	onStartEdit,
+	onEditBodyChange,
+	onSaveEdit,
+	onCancelEdit,
+}: MessageItemProps) {
+	const [isMenuOpen, setIsMenuOpen] = useState(false);
+
+	const handleMenuToggle = () => {
+		setIsMenuOpen(!isMenuOpen);
+	};
+
+	const handleEditClick = () => {
+		setIsMenuOpen(false);
+		onStartEdit(message);
+	};
+
+	if (isEditing && editState) {
+		return (
+			<li
+				className="message-item message-item--editing"
+				ref={isLatest ? latestMessageRef : undefined}
+			>
+				<textarea
+					className="message-edit-textarea"
+					value={editState.editBody}
+					onChange={(e) => onEditBodyChange(e.target.value)}
+					disabled={editState.isUpdating}
+					data-testid="edit-textarea"
+				/>
+				<div className="message-edit-actions">
+					<button
+						type="button"
+						className="message-edit-save"
+						onClick={onSaveEdit}
+						disabled={editState.isUpdating || editState.editBody === ""}
+						data-testid="edit-save-button"
+					>
+						{editState.isUpdating ? "保存中..." : "保存"}
+					</button>
+					<button
+						type="button"
+						className="message-edit-cancel"
+						onClick={onCancelEdit}
+						disabled={editState.isUpdating}
+						data-testid="edit-cancel-button"
+					>
+						キャンセル
+					</button>
+				</div>
+				{editState.updateError && (
+					<p
+						className="message-edit-error status--error"
+						role="alert"
+						data-testid="edit-error"
+					>
+						{editState.updateError}
+					</p>
+				)}
+			</li>
+		);
+	}
+
+	return (
+		<li className="message-item" ref={isLatest ? latestMessageRef : undefined}>
+			<div className="message-header">
+				<div className="message-menu">
+					<button
+						type="button"
+						className="message-menu-trigger"
+						onClick={handleMenuToggle}
+						aria-label="メッセージ操作メニュー"
+						data-testid="message-menu-trigger"
+					>
+						...
+					</button>
+					{isMenuOpen && (
+						<div
+							className="message-menu-panel"
+							data-testid="message-menu-panel"
+						>
+							<button
+								type="button"
+								className="message-menu-item"
+								onClick={handleEditClick}
+								data-testid="message-edit-button"
+							>
+								編集
+							</button>
+						</div>
+					)}
+				</div>
+			</div>
+			<p className="message-body">{renderMessageBody(message.body)}</p>
+			<p className="message-meta">
+				<time dateTime={message.created_at}>
+					{formatMessageTime(message.created_at)}
+				</time>
+			</p>
+		</li>
+	);
+}
+
 export function MessageList({
 	messages,
 	isLoadingMessages,
 	messagesError,
 	timelineRef,
 	latestMessageRef,
+	editState,
+	onStartEdit,
+	onEditBodyChange,
+	onSaveEdit,
+	onCancelEdit,
 }: MessageListProps) {
 	const timelineItems = buildTimelineItems(messages);
 	const lastMessageIndex = timelineItems.findLastIndex(
@@ -165,21 +302,20 @@ export function MessageList({
 						}
 
 						const isLatest = timelineItems.indexOf(item) === lastMessageIndex;
+						const isEditing = editState?.messageId === item.message.id;
 						return (
-							<li
-								className="message-item"
+							<MessageItem
 								key={item.key}
-								ref={isLatest ? latestMessageRef : undefined}
-							>
-								<p className="message-body">
-									{renderMessageBody(item.message.body)}
-								</p>
-								<p className="message-meta">
-									<time dateTime={item.message.created_at}>
-										{formatMessageTime(item.message.created_at)}
-									</time>
-								</p>
-							</li>
+								message={item.message}
+								isLatest={isLatest}
+								latestMessageRef={latestMessageRef}
+								isEditing={isEditing}
+								editState={editState}
+								onStartEdit={onStartEdit}
+								onEditBodyChange={onEditBodyChange}
+								onSaveEdit={onSaveEdit}
+								onCancelEdit={onCancelEdit}
+							/>
 						);
 					})}
 				</ol>
