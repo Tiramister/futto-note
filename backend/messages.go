@@ -45,6 +45,24 @@ var insertMessage = func(userID string, body string) (messageListItem, error) {
 	return message, nil
 }
 
+var deleteMessage = func(id int, userID string) (bool, error) {
+	result, err := db.Exec(
+		`DELETE FROM messages WHERE id = $1 AND user_id = $2`,
+		id,
+		userID,
+	)
+	if err != nil {
+		return false, err
+	}
+
+	rowsAffected, err := result.RowsAffected()
+	if err != nil {
+		return false, err
+	}
+
+	return rowsAffected > 0, nil
+}
+
 var updateMessage = func(id int, userID string, body string) (messageListItem, error) {
 	var message messageListItem
 	err := db.QueryRow(
@@ -168,4 +186,32 @@ func updateMessageHandler(w http.ResponseWriter, r *http.Request) {
 	}
 
 	writeJSON(w, http.StatusOK, message)
+}
+
+func deleteMessageHandler(w http.ResponseWriter, r *http.Request) {
+	userID, ok := getUserIDFromContext(r.Context())
+	if !ok || userID == "" {
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	idParam := chi.URLParam(r, "id")
+	messageID, err := strconv.Atoi(idParam)
+	if err != nil {
+		writeError(w, http.StatusBadRequest, "invalid message id")
+		return
+	}
+
+	deleted, err := deleteMessage(messageID, userID)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "internal server error")
+		return
+	}
+
+	if !deleted {
+		writeError(w, http.StatusNotFound, "message not found")
+		return
+	}
+
+	w.WriteHeader(http.StatusNoContent)
 }

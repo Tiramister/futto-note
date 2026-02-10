@@ -53,6 +53,16 @@ function getPutMessageCalls() {
 	});
 }
 
+function getDeleteMessageCalls() {
+	return fetchMock.mock.calls.filter(([url, options]) => {
+		if (typeof url !== "string" || !url.startsWith("/api/messages/")) {
+			return false;
+		}
+		const requestInit = options as RequestInit | undefined;
+		return requestInit?.method === "DELETE";
+	});
+}
+
 describe("App", () => {
 	beforeEach(() => {
 		vi.stubGlobal("fetch", fetchMock);
@@ -500,5 +510,114 @@ describe("App", () => {
 			expect(screen.getByText("再試行で成功")).toBeInTheDocument();
 		});
 		expect(screen.queryByTestId("edit-textarea")).not.toBeInTheDocument();
+	});
+
+	it("削除ボタン押下時に確認ダイアログを表示し、OKで削除APIを呼び出す", async () => {
+		const confirmMock = vi.fn(() => true);
+		vi.stubGlobal("confirm", confirmMock);
+
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse({ user: sampleUser }))
+			.mockResolvedValueOnce(jsonResponse({ messages: sampleMessages }))
+			.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByTestId("main-screen")).toBeInTheDocument();
+		});
+		await screen.findByText("最初のメッセージ");
+
+		const menuTriggers = screen.getAllByTestId("message-menu-trigger");
+		fireEvent.click(menuTriggers[0]);
+
+		const deleteButton = await screen.findByTestId("message-delete-button");
+		fireEvent.click(deleteButton);
+
+		expect(confirmMock).toHaveBeenCalledWith("このメッセージを削除しますか？");
+
+		await waitFor(() => {
+			expect(fetchMock).toHaveBeenCalledWith(
+				"/api/messages/1",
+				expect.objectContaining({
+					method: "DELETE",
+					credentials: "include",
+				}),
+			);
+		});
+
+		await waitFor(() => {
+			expect(screen.queryByText("最初のメッセージ")).not.toBeInTheDocument();
+		});
+	});
+
+	it("削除確認ダイアログでキャンセル時はAPIを呼び出さない", async () => {
+		const confirmMock = vi.fn(() => false);
+		vi.stubGlobal("confirm", confirmMock);
+
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse({ user: sampleUser }))
+			.mockResolvedValueOnce(jsonResponse({ messages: sampleMessages }));
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByTestId("main-screen")).toBeInTheDocument();
+		});
+		await screen.findByText("最初のメッセージ");
+
+		const menuTriggers = screen.getAllByTestId("message-menu-trigger");
+		fireEvent.click(menuTriggers[0]);
+
+		const deleteButton = await screen.findByTestId("message-delete-button");
+		fireEvent.click(deleteButton);
+
+		expect(confirmMock).toHaveBeenCalledWith("このメッセージを削除しますか？");
+		expect(getDeleteMessageCalls()).toHaveLength(0);
+		expect(screen.getByText("最初のメッセージ")).toBeInTheDocument();
+	});
+
+	it("削除失敗時はメッセージを残してエラー表示し、再試行可能", async () => {
+		const confirmMock = vi.fn(() => true);
+		vi.stubGlobal("confirm", confirmMock);
+
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse({ user: sampleUser }))
+			.mockResolvedValueOnce(jsonResponse({ messages: sampleMessages }))
+			.mockResolvedValueOnce(
+				jsonResponse({ error: "メッセージの削除に失敗しました。" }, 500),
+			)
+			.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByTestId("main-screen")).toBeInTheDocument();
+		});
+		await screen.findByText("最初のメッセージ");
+
+		const menuTriggers = screen.getAllByTestId("message-menu-trigger");
+		fireEvent.click(menuTriggers[0]);
+
+		const deleteButton = await screen.findByTestId("message-delete-button");
+		fireEvent.click(deleteButton);
+
+		await waitFor(() => {
+			expect(screen.getByTestId("delete-error")).toHaveTextContent(
+				"メッセージの削除に失敗しました。",
+			);
+		});
+		expect(screen.getByText("最初のメッセージ")).toBeInTheDocument();
+
+		// 再試行
+		fireEvent.click(menuTriggers[0]);
+		const deleteButtonRetry = await screen.findByTestId(
+			"message-delete-button",
+		);
+		fireEvent.click(deleteButtonRetry);
+
+		await waitFor(() => {
+			expect(screen.queryByText("最初のメッセージ")).not.toBeInTheDocument();
+		});
 	});
 });

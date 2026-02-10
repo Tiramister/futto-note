@@ -116,6 +116,12 @@ export function useMessages(
 		);
 	};
 
+	const removeMessage = (messageId: number) => {
+		setMessages((currentMessages) =>
+			currentMessages.filter((msg) => msg.id !== messageId),
+		);
+	};
+
 	return {
 		messages,
 		isLoadingMessages,
@@ -124,5 +130,6 @@ export function useMessages(
 		latestMessageRef,
 		appendMessage,
 		replaceMessage,
+		removeMessage,
 	};
 }

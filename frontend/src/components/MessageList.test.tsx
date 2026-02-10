@@ -1,7 +1,7 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup, render, screen } from "@testing-library/react";
 import { createRef } from "react";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Message } from "../types";
 import { MessageList } from "./MessageList";
 
@@ -13,6 +13,12 @@ function renderMessageList(messages: Message[]) {
 			messagesError=""
 			timelineRef={createRef<HTMLDivElement>()}
 			latestMessageRef={createRef<HTMLLIElement>()}
+			editState={null}
+			onStartEdit={vi.fn()}
+			onEditBodyChange={vi.fn()}
+			onSaveEdit={vi.fn()}
+			onCancelEdit={vi.fn()}
+			onDelete={vi.fn()}
 		/>,
 	);
 }

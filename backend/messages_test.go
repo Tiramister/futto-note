@@ -405,3 +405,165 @@ func TestUpdateMessageHandler_NotFoundForOtherUsersMessage(t *testing.T) {
 		t.Fatalf("unexpected response body: %s", body)
 	}
 }
+
+func TestDeleteMessageHandler_UnauthorizedWithoutSession(t *testing.T) {
+	router := chi.NewRouter()
+	router.Group(func(r chi.Router) {
+		r.Use(authMiddleware)
+		r.Delete("/api/messages/{id}", deleteMessageHandler)
+	})
+
+	request := httptest.NewRequest(http.MethodDelete, "/api/messages/1", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("expected status %d, got %d", http.StatusUnauthorized, recorder.Code)
+	}
+
+	if body := recorder.Body.String(); body != "{\"error\":\"unauthorized\"}\n" {
+		t.Fatalf("unexpected response body: %s", body)
+	}
+}
+
+func TestDeleteMessageHandler_RejectsInvalidID(t *testing.T) {
+	originalDeleteMessage := deleteMessage
+	t.Cleanup(func() {
+		deleteMessage = originalDeleteMessage
+	})
+
+	wasCalled := false
+	deleteMessage = func(id int, userID string) (bool, error) {
+		wasCalled = true
+		return false, nil
+	}
+
+	router := chi.NewRouter()
+	router.Delete("/api/messages/{id}", func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), userIDContextKey, "user-1")
+		deleteMessageHandler(w, r.WithContext(ctx))
+	})
+
+	request := httptest.NewRequest(http.MethodDelete, "/api/messages/abc", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("expected status %d, got %d", http.StatusBadRequest, recorder.Code)
+	}
+
+	if wasCalled {
+		t.Fatalf("deleteMessage should not be called for invalid id")
+	}
+
+	if body := recorder.Body.String(); body != "{\"error\":\"invalid message id\"}\n" {
+		t.Fatalf("unexpected response body: %s", body)
+	}
+}
+
+func TestDeleteMessageHandler_NotFoundForNonexistentMessage(t *testing.T) {
+	originalDeleteMessage := deleteMessage
+	t.Cleanup(func() {
+		deleteMessage = originalDeleteMessage
+	})
+
+	deleteMessage = func(id int, userID string) (bool, error) {
+		return false, nil
+	}
+
+	router := chi.NewRouter()
+	router.Delete("/api/messages/{id}", func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), userIDContextKey, "user-1")
+		deleteMessageHandler(w, r.WithContext(ctx))
+	})
+
+	request := httptest.NewRequest(http.MethodDelete, "/api/messages/999", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("expected status %d, got %d", http.StatusNotFound, recorder.Code)
+	}
+
+	if body := recorder.Body.String(); body != "{\"error\":\"message not found\"}\n" {
+		t.Fatalf("unexpected response body: %s", body)
+	}
+}
+
+func TestDeleteMessageHandler_DeletesMessageForAuthenticatedUser(t *testing.T) {
+	originalDeleteMessage := deleteMessage
+	t.Cleanup(func() {
+		deleteMessage = originalDeleteMessage
+	})
+
+	gotID := 0
+	gotUserID := ""
+	deleteMessage = func(id int, userID string) (bool, error) {
+		gotID = id
+		gotUserID = userID
+		return true, nil
+	}
+
+	router := chi.NewRouter()
+	router.Delete("/api/messages/{id}", func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), userIDContextKey, "user-1")
+		deleteMessageHandler(w, r.WithContext(ctx))
+	})
+
+	request := httptest.NewRequest(http.MethodDelete, "/api/messages/42", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusNoContent {
+		t.Fatalf("expected status %d, got %d", http.StatusNoContent, recorder.Code)
+	}
+
+	if gotID != 42 {
+		t.Fatalf("expected id 42, got %d", gotID)
+	}
+
+	if gotUserID != "user-1" {
+		t.Fatalf("expected user_id user-1, got %s", gotUserID)
+	}
+
+	if body := recorder.Body.String(); body != "" {
+		t.Fatalf("expected empty body, got %s", body)
+	}
+}
+
+func TestDeleteMessageHandler_NotFoundForOtherUsersMessage(t *testing.T) {
+	originalDeleteMessage := deleteMessage
+	t.Cleanup(func() {
+		deleteMessage = originalDeleteMessage
+	})
+
+	gotUserID := ""
+	deleteMessage = func(id int, userID string) (bool, error) {
+		gotUserID = userID
+		// user-2 のメッセージを user-1 が削除しようとする場合、
+		// WHERE id = $1 AND user_id = $2 の条件に合致しないため false が返る
+		return false, nil
+	}
+
+	router := chi.NewRouter()
+	router.Delete("/api/messages/{id}", func(w http.ResponseWriter, r *http.Request) {
+		ctx := context.WithValue(r.Context(), userIDContextKey, "user-1")
+		deleteMessageHandler(w, r.WithContext(ctx))
+	})
+
+	request := httptest.NewRequest(http.MethodDelete, "/api/messages/42", nil)
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("expected status %d, got %d", http.StatusNotFound, recorder.Code)
+	}
+
+	if gotUserID != "user-1" {
+		t.Fatalf("expected user_id user-1, got %s", gotUserID)
+	}
+
+	if body := recorder.Body.String(); body != "{\"error\":\"message not found\"}\n" {
+		t.Fatalf("unexpected response body: %s", body)
+	}
+}

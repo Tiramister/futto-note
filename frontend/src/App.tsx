@@ -51,6 +51,7 @@ function App() {
 		latestMessageRef,
 		appendMessage,
 		replaceMessage,
+		removeMessage,
 	} = useMessages(user, setUser);
 	const [draftMessage, setDraftMessage] = useState("");
 	const [isSubmittingMessage, setIsSubmittingMessage] = useState(false);
@@ -60,6 +61,7 @@ function App() {
 	const [editBody, setEditBody] = useState("");
 	const [isUpdating, setIsUpdating] = useState(false);
 	const [updateError, setUpdateError] = useState("");
+	const [deleteError, setDeleteError] = useState("");
 
 	useEffect(() => {
 		if (user) {
@@ -72,6 +74,7 @@ function App() {
 		setEditBody("");
 		setIsUpdating(false);
 		setUpdateError("");
+		setDeleteError("");
 	}, [user]);
 
 	const handleDraftMessageChange = (nextValue: string) => {
@@ -186,6 +189,42 @@ function App() {
 		}
 	};
 
+	const handleDeleteMessage = async (messageId: number) => {
+		setDeleteError("");
+		try {
+			const response = await fetch(
+				`${config.apiBaseUrl}/api/messages/${messageId}`,
+				{
+					method: "DELETE",
+					credentials: "include",
+				},
+			);
+
+			if (response.status === 401) {
+				setUser(null);
+				return;
+			}
+
+			if (!response.ok) {
+				const message = await parseErrorMessage(
+					response,
+					"メッセージの削除に失敗しました。",
+				);
+				setDeleteError(message);
+				return;
+			}
+
+			removeMessage(messageId);
+			if (editingMessageId === messageId) {
+				setEditingMessageId(null);
+				setEditBody("");
+				setUpdateError("");
+			}
+		} catch {
+			setDeleteError("メッセージの削除に失敗しました。");
+		}
+	};
+
 	const editState =
 		editingMessageId !== null
 			? {
@@ -241,7 +280,17 @@ function App() {
 					onEditBodyChange={handleEditBodyChange}
 					onSaveEdit={handleSaveEdit}
 					onCancelEdit={handleCancelEdit}
+					onDelete={handleDeleteMessage}
 				/>
+				{deleteError !== "" && (
+					<p
+						className="status status--error"
+						role="alert"
+						data-testid="delete-error"
+					>
+						{deleteError}
+					</p>
+				)}
 				<MessageComposer
 					value={draftMessage}
 					isSubmitting={isSubmittingMessage}

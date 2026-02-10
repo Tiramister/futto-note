@@ -37,6 +37,7 @@ func main() {
 		r.Get("/api/messages", listMessagesHandler)
 		r.Post("/api/messages", createMessageHandler)
 		r.Put("/api/messages/{id}", updateMessageHandler)
+		r.Delete("/api/messages/{id}", deleteMessageHandler)
 	})
 
 	port := os.Getenv("PORT")

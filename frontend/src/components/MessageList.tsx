@@ -19,6 +19,7 @@ type MessageListProps = {
 	onEditBodyChange: (value: string) => void;
 	onSaveEdit: () => void;
 	onCancelEdit: () => void;
+	onDelete: (messageId: number) => void;
 };
 
 type TimelineItem =
@@ -130,6 +131,7 @@ type MessageItemProps = {
 	onEditBodyChange: (value: string) => void;
 	onSaveEdit: () => void;
 	onCancelEdit: () => void;
+	onDelete: (messageId: number) => void;
 };
 
 function MessageItem({
@@ -142,6 +144,7 @@ function MessageItem({
 	onEditBodyChange,
 	onSaveEdit,
 	onCancelEdit,
+	onDelete,
 }: MessageItemProps) {
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -152,6 +155,13 @@ function MessageItem({
 	const handleEditClick = () => {
 		setIsMenuOpen(false);
 		onStartEdit(message);
+	};
+
+	const handleDeleteClick = () => {
+		setIsMenuOpen(false);
+		if (window.confirm("このメッセージを削除しますか？")) {
+			onDelete(message.id);
+		}
 	};
 
 	if (isEditing && editState) {
@@ -226,6 +236,14 @@ function MessageItem({
 							>
 								編集
 							</button>
+							<button
+								type="button"
+								className="message-menu-item"
+								onClick={handleDeleteClick}
+								data-testid="message-delete-button"
+							>
+								削除
+							</button>
 						</div>
 					)}
 				</div>
@@ -251,6 +269,7 @@ export function MessageList({
 	onEditBodyChange,
 	onSaveEdit,
 	onCancelEdit,
+	onDelete,
 }: MessageListProps) {
 	const timelineItems = buildTimelineItems(messages);
 	const lastMessageIndex = timelineItems.findLastIndex(
@@ -315,6 +334,7 @@ export function MessageList({
 								onEditBodyChange={onEditBodyChange}
 								onSaveEdit={onSaveEdit}
 								onCancelEdit={onCancelEdit}
+								onDelete={onDelete}
 							/>
 						);
 					})}
