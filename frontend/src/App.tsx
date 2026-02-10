@@ -62,6 +62,8 @@ function App() {
 	const [isUpdating, setIsUpdating] = useState(false);
 	const [updateError, setUpdateError] = useState("");
 	const [deleteError, setDeleteError] = useState("");
+	const [copiedMessageId, setCopiedMessageId] = useState<number | null>(null);
+	const [copyError, setCopyError] = useState("");
 
 	useEffect(() => {
 		if (user) {
@@ -75,6 +77,8 @@ function App() {
 		setIsUpdating(false);
 		setUpdateError("");
 		setDeleteError("");
+		setCopiedMessageId(null);
+		setCopyError("");
 	}, [user]);
 
 	const handleDraftMessageChange = (nextValue: string) => {
@@ -189,6 +193,21 @@ function App() {
 		}
 	};
 
+	const handleCopyMessage = async (message: Message) => {
+		setCopyError("");
+		try {
+			await navigator.clipboard.writeText(message.body);
+			setCopiedMessageId(message.id);
+			setTimeout(() => {
+				setCopiedMessageId((current) =>
+					current === message.id ? null : current,
+				);
+			}, 2000);
+		} catch {
+			setCopyError("コピーに失敗しました。");
+		}
+	};
+
 	const handleDeleteMessage = async (messageId: number) => {
 		setDeleteError("");
 		try {
@@ -276,11 +295,13 @@ function App() {
 					timelineRef={timelineRef}
 					latestMessageRef={latestMessageRef}
 					editState={editState}
+					copiedMessageId={copiedMessageId}
 					onStartEdit={handleStartEdit}
 					onEditBodyChange={handleEditBodyChange}
 					onSaveEdit={handleSaveEdit}
 					onCancelEdit={handleCancelEdit}
 					onDelete={handleDeleteMessage}
+					onCopy={handleCopyMessage}
 				/>
 				{deleteError !== "" && (
 					<p
@@ -289,6 +310,15 @@ function App() {
 						data-testid="delete-error"
 					>
 						{deleteError}
+					</p>
+				)}
+				{copyError !== "" && (
+					<p
+						className="status status--error"
+						role="alert"
+						data-testid="copy-error"
+					>
+						{copyError}
 					</p>
 				)}
 				<MessageComposer

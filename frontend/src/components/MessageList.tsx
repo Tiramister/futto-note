@@ -15,11 +15,13 @@ type MessageListProps = {
 	timelineRef: RefObject<HTMLDivElement | null>;
 	latestMessageRef: Ref<HTMLLIElement>;
 	editState: EditState | null;
+	copiedMessageId: number | null;
 	onStartEdit: (message: Message) => void;
 	onEditBodyChange: (value: string) => void;
 	onSaveEdit: () => void;
 	onCancelEdit: () => void;
 	onDelete: (messageId: number) => void;
+	onCopy: (message: Message) => void;
 };
 
 type TimelineItem =
@@ -127,11 +129,13 @@ type MessageItemProps = {
 	latestMessageRef: Ref<HTMLLIElement>;
 	isEditing: boolean;
 	editState: EditState | null;
+	isCopied: boolean;
 	onStartEdit: (message: Message) => void;
 	onEditBodyChange: (value: string) => void;
 	onSaveEdit: () => void;
 	onCancelEdit: () => void;
 	onDelete: (messageId: number) => void;
+	onCopy: (message: Message) => void;
 };
 
 function MessageItem({
@@ -140,11 +144,13 @@ function MessageItem({
 	latestMessageRef,
 	isEditing,
 	editState,
+	isCopied,
 	onStartEdit,
 	onEditBodyChange,
 	onSaveEdit,
 	onCancelEdit,
 	onDelete,
+	onCopy,
 }: MessageItemProps) {
 	const [isMenuOpen, setIsMenuOpen] = useState(false);
 
@@ -162,6 +168,11 @@ function MessageItem({
 		if (window.confirm("このメッセージを削除しますか？")) {
 			onDelete(message.id);
 		}
+	};
+
+	const handleCopyClick = () => {
+		setIsMenuOpen(false);
+		onCopy(message);
 	};
 
 	if (isEditing && editState) {
@@ -229,6 +240,14 @@ function MessageItem({
 					>
 						<button
 							type="button"
+							className={`message-menu-item${isCopied ? " message-menu-item--copied" : ""}`}
+							onClick={handleCopyClick}
+							data-testid="message-copy-button"
+						>
+							{isCopied ? "コピー済" : "コピー"}
+						</button>
+						<button
+							type="button"
 							className="message-menu-item"
 							onClick={handleEditClick}
 							data-testid="message-edit-button"
@@ -263,11 +282,13 @@ export function MessageList({
 	timelineRef,
 	latestMessageRef,
 	editState,
+	copiedMessageId,
 	onStartEdit,
 	onEditBodyChange,
 	onSaveEdit,
 	onCancelEdit,
 	onDelete,
+	onCopy,
 }: MessageListProps) {
 	const timelineItems = buildTimelineItems(messages);
 	const lastMessageIndex = timelineItems.findLastIndex(
@@ -320,6 +341,7 @@ export function MessageList({
 
 						const isLatest = timelineItems.indexOf(item) === lastMessageIndex;
 						const isEditing = editState?.messageId === item.message.id;
+						const isCopied = copiedMessageId === item.message.id;
 						return (
 							<MessageItem
 								key={item.key}
@@ -328,11 +350,13 @@ export function MessageList({
 								latestMessageRef={latestMessageRef}
 								isEditing={isEditing}
 								editState={editState}
+								isCopied={isCopied}
 								onStartEdit={onStartEdit}
 								onEditBodyChange={onEditBodyChange}
 								onSaveEdit={onSaveEdit}
 								onCancelEdit={onCancelEdit}
 								onDelete={onDelete}
+								onCopy={onCopy}
 							/>
 						);
 					})}

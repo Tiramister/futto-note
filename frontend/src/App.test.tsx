@@ -620,4 +620,130 @@ describe("App", () => {
 			expect(screen.queryByText("最初のメッセージ")).not.toBeInTheDocument();
 		});
 	});
+
+	it("コピー成功時にクリップボードAPIを呼び出しフィードバック表示する", async () => {
+		const writeTextMock = vi.fn().mockResolvedValue(undefined);
+		vi.stubGlobal("navigator", {
+			clipboard: { writeText: writeTextMock },
+		});
+
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse({ user: sampleUser }))
+			.mockResolvedValueOnce(jsonResponse({ messages: sampleMessages }));
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByTestId("main-screen")).toBeInTheDocument();
+		});
+		await screen.findByText("最初のメッセージ");
+
+		const menuTriggers = screen.getAllByTestId("message-menu-trigger");
+		fireEvent.click(menuTriggers[0]);
+
+		const copyButton = await screen.findByTestId("message-copy-button");
+		fireEvent.click(copyButton);
+
+		await waitFor(() => {
+			expect(writeTextMock).toHaveBeenCalledWith("最初のメッセージ");
+		});
+
+		// メニューを再度開いて「コピー済」表示を確認
+		fireEvent.click(menuTriggers[0]);
+		await waitFor(() => {
+			expect(screen.getByTestId("message-copy-button")).toHaveTextContent(
+				"コピー済",
+			);
+		});
+	});
+
+	it("コピー失敗時にエラー表示する", async () => {
+		const writeTextMock = vi.fn().mockRejectedValue(new Error("Permission denied"));
+		vi.stubGlobal("navigator", {
+			clipboard: { writeText: writeTextMock },
+		});
+
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse({ user: sampleUser }))
+			.mockResolvedValueOnce(jsonResponse({ messages: sampleMessages }));
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByTestId("main-screen")).toBeInTheDocument();
+		});
+		await screen.findByText("最初のメッセージ");
+
+		const menuTriggers = screen.getAllByTestId("message-menu-trigger");
+		fireEvent.click(menuTriggers[0]);
+
+		const copyButton = await screen.findByTestId("message-copy-button");
+		fireEvent.click(copyButton);
+
+		await waitFor(() => {
+			expect(screen.getByTestId("copy-error")).toHaveTextContent(
+				"コピーに失敗しました。",
+			);
+		});
+	});
+
+	it("コピー操作後も編集・削除フローが正常に動作する", async () => {
+		const writeTextMock = vi.fn().mockResolvedValue(undefined);
+		vi.stubGlobal("navigator", {
+			clipboard: { writeText: writeTextMock },
+		});
+
+		const confirmMock = vi.fn(() => true);
+		vi.stubGlobal("confirm", confirmMock);
+
+		const updatedMessage = {
+			id: 1,
+			body: "編集後メッセージ",
+			created_at: "2026-02-09T10:00:00Z",
+		};
+
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse({ user: sampleUser }))
+			.mockResolvedValueOnce(jsonResponse({ messages: sampleMessages }))
+			.mockResolvedValueOnce(jsonResponse(updatedMessage))
+			.mockResolvedValueOnce(new Response(null, { status: 204 }));
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByTestId("main-screen")).toBeInTheDocument();
+		});
+		await screen.findByText("最初のメッセージ");
+
+		// コピー操作
+		const menuTriggers = screen.getAllByTestId("message-menu-trigger");
+		fireEvent.click(menuTriggers[0]);
+		fireEvent.click(await screen.findByTestId("message-copy-button"));
+
+		await waitFor(() => {
+			expect(writeTextMock).toHaveBeenCalled();
+		});
+
+		// 編集操作
+		fireEvent.click(menuTriggers[0]);
+		fireEvent.click(await screen.findByTestId("message-edit-button"));
+
+		const textarea = screen.getByTestId("edit-textarea");
+		fireEvent.change(textarea, { target: { value: "編集後メッセージ" } });
+		fireEvent.click(screen.getByTestId("edit-save-button"));
+
+		await waitFor(() => {
+			expect(screen.getByText("編集後メッセージ")).toBeInTheDocument();
+		});
+
+		// 削除操作
+		fireEvent.click(menuTriggers[1]);
+		fireEvent.click(await screen.findByTestId("message-delete-button"));
+
+		await waitFor(() => {
+			expect(
+				screen.queryByText("リンク付き https://example.com"),
+			).not.toBeInTheDocument();
+		});
+	});
 });

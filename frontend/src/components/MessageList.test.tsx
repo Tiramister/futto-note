@@ -1,11 +1,17 @@
 import "@testing-library/jest-dom/vitest";
-import { cleanup, render, screen } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
 import { createRef } from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import type { Message } from "../types";
 import { MessageList } from "./MessageList";
 
-function renderMessageList(messages: Message[]) {
+function renderMessageList(
+	messages: Message[],
+	options?: {
+		copiedMessageId?: number | null;
+		onCopy?: (message: Message) => void;
+	},
+) {
 	render(
 		<MessageList
 			messages={messages}
@@ -14,11 +20,13 @@ function renderMessageList(messages: Message[]) {
 			timelineRef={createRef<HTMLDivElement>()}
 			latestMessageRef={createRef<HTMLLIElement>()}
 			editState={null}
+			copiedMessageId={options?.copiedMessageId ?? null}
 			onStartEdit={vi.fn()}
 			onEditBodyChange={vi.fn()}
 			onSaveEdit={vi.fn()}
 			onCancelEdit={vi.fn()}
 			onDelete={vi.fn()}
+			onCopy={options?.onCopy ?? vi.fn()}
 		/>,
 	);
 }
@@ -110,15 +118,42 @@ describe("MessageList", () => {
 				timelineRef={createRef<HTMLDivElement>()}
 				latestMessageRef={createRef<HTMLLIElement>()}
 				editState={null}
+				copiedMessageId={null}
 				onStartEdit={vi.fn()}
 				onEditBodyChange={vi.fn()}
 				onSaveEdit={vi.fn()}
 				onCancelEdit={vi.fn()}
 				onDelete={vi.fn()}
+				onCopy={vi.fn()}
 			/>,
 		);
 
 		expect(container.querySelector(".message-header")).toBeNull();
 		expect(container.querySelector(".message-menu")).not.toBeNull();
+	});
+
+	it("操作メニューにコピー・編集・削除が表示される", () => {
+		renderMessageList([
+			{ id: 1, body: "test message", created_at: "2025-01-16T12:00:00Z" },
+		]);
+
+		fireEvent.click(screen.getByTestId("message-menu-trigger"));
+
+		expect(screen.getByTestId("message-copy-button")).toBeInTheDocument();
+		expect(screen.getByTestId("message-edit-button")).toBeInTheDocument();
+		expect(screen.getByTestId("message-delete-button")).toBeInTheDocument();
+	});
+
+	it("コピー済み状態でメニュー項目が「コピー済」表示になる", () => {
+		renderMessageList(
+			[{ id: 1, body: "test message", created_at: "2025-01-16T12:00:00Z" }],
+			{ copiedMessageId: 1 },
+		);
+
+		fireEvent.click(screen.getByTestId("message-menu-trigger"));
+
+		const copyButton = screen.getByTestId("message-copy-button");
+		expect(copyButton).toHaveTextContent("コピー済");
+		expect(copyButton).toHaveClass("message-menu-item--copied");
 	});
 });
