@@ -28,22 +28,24 @@ export function useMessages(
 	const [messages, setMessages] = useState<Message[]>([]);
 	const [isLoadingMessages, setIsLoadingMessages] = useState(false);
 	const [messagesError, setMessagesError] = useState("");
+	const [scrollRequest, setScrollRequest] = useState<
+		"initial" | "post-send" | null
+	>(null);
 	const timelineRef = useRef<HTMLDivElement | null>(null);
-	const hasAutoScrolledRef = useRef(false);
+	const latestMessageRef = useRef<HTMLLIElement | null>(null);
 
 	useEffect(() => {
 		if (!user) {
 			setMessages([]);
 			setMessagesError("");
 			setIsLoadingMessages(false);
-			hasAutoScrolledRef.current = false;
+			setScrollRequest(null);
 			return;
 		}
 
 		const controller = new AbortController();
 		setMessagesError("");
 		setIsLoadingMessages(true);
-		hasAutoScrolledRef.current = false;
 
 		const fetchMessages = async () => {
 			try {
@@ -69,6 +71,7 @@ export function useMessages(
 
 				const data = (await response.json()) as MessagesResponse;
 				setMessages(Array.isArray(data.messages) ? data.messages : []);
+				setScrollRequest("initial");
 			} catch {
 				if (!controller.signal.aborted) {
 					setMessagesError("メッセージの取得に失敗しました。");
@@ -88,36 +91,21 @@ export function useMessages(
 	}, [user, setUser]);
 
 	useEffect(() => {
-		if (!user || isLoadingMessages || messagesError !== "") {
-			return;
-		}
-		if (hasAutoScrolledRef.current) {
-			return;
-		}
-		if (messages.length === 0) {
-			hasAutoScrolledRef.current = true;
+		if (scrollRequest === null) {
 			return;
 		}
 
-		const timelineElement = timelineRef.current;
-		if (!timelineElement) {
-			return;
+		const latestMessageElement = latestMessageRef.current;
+		if (latestMessageElement) {
+			latestMessageElement.scrollIntoView({ block: "end" });
 		}
 
-		timelineElement.scrollTop = timelineElement.scrollHeight;
-		hasAutoScrolledRef.current = true;
-	}, [user, isLoadingMessages, messages.length, messagesError]);
+		setScrollRequest(null);
+	}, [scrollRequest]);
 
 	const appendMessage = (message: Message) => {
 		setMessages((currentMessages) => [...currentMessages, message]);
-	};
-
-	const scrollToBottom = () => {
-		const timelineElement = timelineRef.current;
-		if (!timelineElement) {
-			return;
-		}
-		timelineElement.scrollTop = timelineElement.scrollHeight;
+		setScrollRequest("post-send");
 	};
 
 	return {
@@ -125,7 +113,7 @@ export function useMessages(
 		isLoadingMessages,
 		messagesError,
 		timelineRef,
+		latestMessageRef,
 		appendMessage,
-		scrollToBottom,
 	};
 }

@@ -1,10 +1,10 @@
 import { useEffect, useState } from "react";
 import "./App.css";
-import { config } from "./config";
 import { AuthHeader } from "./components/AuthHeader";
 import { LoginForm } from "./components/LoginForm";
 import { MessageComposer } from "./components/MessageComposer";
 import { MessageList } from "./components/MessageList";
+import { config } from "./config";
 import { useAuth } from "./hooks/useAuth";
 import { useMessages } from "./hooks/useMessages";
 import type { Message } from "./types";
@@ -48,8 +48,8 @@ function App() {
 		isLoadingMessages,
 		messagesError,
 		timelineRef,
+		latestMessageRef,
 		appendMessage,
-		scrollToBottom,
 	} = useMessages(user, setUser);
 	const [draftMessage, setDraftMessage] = useState("");
 	const [isSubmittingMessage, setIsSubmittingMessage] = useState(false);
@@ -105,9 +105,6 @@ function App() {
 			const createdMessage = (await response.json()) as Message;
 			appendMessage(createdMessage);
 			setDraftMessage("");
-			setTimeout(() => {
-				scrollToBottom();
-			}, 0);
 		} catch {
 			setSubmitMessageError("メッセージの送信に失敗しました。");
 		} finally {
@@ -154,6 +151,7 @@ function App() {
 					isLoadingMessages={isLoadingMessages}
 					messagesError={messagesError}
 					timelineRef={timelineRef}
+					latestMessageRef={latestMessageRef}
 				/>
 				<MessageComposer
 					value={draftMessage}

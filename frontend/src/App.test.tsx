@@ -155,6 +155,26 @@ describe("App", () => {
 		expect(await screen.findByText("最初のメッセージ")).toBeInTheDocument();
 	});
 
+	it("初回表示時に最新メッセージへ scrollIntoView を呼び出す", async () => {
+		const scrollIntoViewMock = vi.fn();
+		Element.prototype.scrollIntoView = scrollIntoViewMock;
+
+		fetchMock
+			.mockResolvedValueOnce(jsonResponse({ user: sampleUser }))
+			.mockResolvedValueOnce(jsonResponse({ messages: sampleMessages }));
+
+		render(<App />);
+
+		await waitFor(() => {
+			expect(screen.getByTestId("main-screen")).toBeInTheDocument();
+		});
+		await screen.findByText("最初のメッセージ");
+
+		await waitFor(() => {
+			expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: "end" });
+		});
+	});
+
 	it("URL を含む本文をリンクとして表示し、通常テキストはそのまま表示する", async () => {
 		fetchMock
 			.mockResolvedValueOnce(jsonResponse({ user: sampleUser }))
@@ -188,7 +208,10 @@ describe("App", () => {
 		expect(getPostMessageCalls()).toHaveLength(0);
 	});
 
-	it("送信成功時に入力をクリアし、タイムラインに追加して最下部へスクロールする", async () => {
+	it("送信成功時に入力をクリアし、タイムラインに追加して最新メッセージへスクロールする", async () => {
+		const scrollIntoViewMock = vi.fn();
+		Element.prototype.scrollIntoView = scrollIntoViewMock;
+
 		const createdMessage = {
 			id: 3,
 			body: "送信成功メッセージ",
@@ -205,16 +228,12 @@ describe("App", () => {
 			expect(screen.getByTestId("main-screen")).toBeInTheDocument();
 		});
 
-		const timeline = screen.getByTestId("message-list");
-		Object.defineProperty(timeline, "scrollHeight", {
-			value: 640,
-			configurable: true,
+		// 初回スクロール呼び出しをリセット
+		await screen.findByText("最初のメッセージ");
+		await waitFor(() => {
+			expect(scrollIntoViewMock).toHaveBeenCalled();
 		});
-		Object.defineProperty(timeline, "scrollTop", {
-			value: 0,
-			writable: true,
-			configurable: true,
-		});
+		scrollIntoViewMock.mockClear();
 
 		const input = screen.getByLabelText("メッセージ入力");
 		fireEvent.change(input, { target: { value: createdMessage.body } });
@@ -237,7 +256,7 @@ describe("App", () => {
 		expect(await screen.findByText(createdMessage.body)).toBeInTheDocument();
 
 		await waitFor(() => {
-			expect(timeline.scrollTop).toBe(640);
+			expect(scrollIntoViewMock).toHaveBeenCalledWith({ block: "end" });
 		});
 	});
 

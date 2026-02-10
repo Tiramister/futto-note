@@ -12,6 +12,7 @@ function renderMessageList(messages: Message[]) {
 			isLoadingMessages={false}
 			messagesError=""
 			timelineRef={createRef<HTMLDivElement>()}
+			latestMessageRef={createRef<HTMLLIElement>()}
 		/>,
 	);
 }

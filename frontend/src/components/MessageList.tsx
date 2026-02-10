@@ -1,4 +1,4 @@
-import type { ReactNode, RefObject } from "react";
+import type { ReactNode, Ref, RefObject } from "react";
 import type { Message } from "../types";
 
 type MessageListProps = {
@@ -6,6 +6,7 @@ type MessageListProps = {
 	isLoadingMessages: boolean;
 	messagesError: string;
 	timelineRef: RefObject<HTMLDivElement | null>;
+	latestMessageRef: Ref<HTMLLIElement>;
 };
 
 type TimelineItem =
@@ -112,8 +113,12 @@ export function MessageList({
 	isLoadingMessages,
 	messagesError,
 	timelineRef,
+	latestMessageRef,
 }: MessageListProps) {
 	const timelineItems = buildTimelineItems(messages);
+	const lastMessageIndex = timelineItems.findLastIndex(
+		(item) => item.type === "message",
+	);
 
 	return (
 		<div
@@ -159,8 +164,13 @@ export function MessageList({
 							);
 						}
 
+						const isLatest = timelineItems.indexOf(item) === lastMessageIndex;
 						return (
-							<li className="message-item" key={item.key}>
+							<li
+								className="message-item"
+								key={item.key}
+								ref={isLatest ? latestMessageRef : undefined}
+							>
 								<p className="message-body">
 									{renderMessageBody(item.message.body)}
 								</p>
