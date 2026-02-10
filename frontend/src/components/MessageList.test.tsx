@@ -100,4 +100,25 @@ describe("MessageList", () => {
 		expect(label).not.toBe(jaLocaleText);
 		expect(label).not.toBe(enLocaleText);
 	});
+
+	it("通常表示でメニュー専用ヘッダー行を生成しない", () => {
+		const { container } = render(
+			<MessageList
+				messages={[{ id: 1, body: "test", created_at: "2025-01-16T12:00:00Z" }]}
+				isLoadingMessages={false}
+				messagesError=""
+				timelineRef={createRef<HTMLDivElement>()}
+				latestMessageRef={createRef<HTMLLIElement>()}
+				editState={null}
+				onStartEdit={vi.fn()}
+				onEditBodyChange={vi.fn()}
+				onSaveEdit={vi.fn()}
+				onCancelEdit={vi.fn()}
+				onDelete={vi.fn()}
+			/>,
+		);
+
+		expect(container.querySelector(".message-header")).toBeNull();
+		expect(container.querySelector(".message-menu")).not.toBeNull();
+	});
 });

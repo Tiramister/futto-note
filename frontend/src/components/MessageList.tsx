@@ -212,41 +212,39 @@ function MessageItem({
 
 	return (
 		<li className="message-item" ref={isLatest ? latestMessageRef : undefined}>
-			<div className="message-header">
-				<div className="message-menu">
-					<button
-						type="button"
-						className="message-menu-trigger"
-						onClick={handleMenuToggle}
-						aria-label="メッセージ操作メニュー"
-						data-testid="message-menu-trigger"
+			<div className="message-menu">
+				<button
+					type="button"
+					className="message-menu-trigger"
+					onClick={handleMenuToggle}
+					aria-label="メッセージ操作メニュー"
+					data-testid="message-menu-trigger"
+				>
+					...
+				</button>
+				{isMenuOpen && (
+					<div
+						className="message-menu-panel"
+						data-testid="message-menu-panel"
 					>
-						...
-					</button>
-					{isMenuOpen && (
-						<div
-							className="message-menu-panel"
-							data-testid="message-menu-panel"
+						<button
+							type="button"
+							className="message-menu-item"
+							onClick={handleEditClick}
+							data-testid="message-edit-button"
 						>
-							<button
-								type="button"
-								className="message-menu-item"
-								onClick={handleEditClick}
-								data-testid="message-edit-button"
-							>
-								編集
-							</button>
-							<button
-								type="button"
-								className="message-menu-item"
-								onClick={handleDeleteClick}
-								data-testid="message-delete-button"
-							>
-								削除
-							</button>
-						</div>
-					)}
-				</div>
+							編集
+						</button>
+						<button
+							type="button"
+							className="message-menu-item"
+							onClick={handleDeleteClick}
+							data-testid="message-delete-button"
+						>
+							削除
+						</button>
+					</div>
+				)}
 			</div>
 			<p className="message-body">{renderMessageBody(message.body)}</p>
 			<p className="message-meta">
